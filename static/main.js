@@ -46,11 +46,29 @@ if (myName != null) {
 }
 if (enteredName) {
     var source = new EventSource('/chat/' + myName);
-    source.onmessage = function (e) {
-        chat.value += e.data + '\n';
-        chat.scrollTop = chat.scrollHeight;
-        text.value = '';
-        text.placeholder = 'write your text..';
+    source.onmessage = function (_a) {
+        var data = _a.data;
+        data = JSON.parse(data);
+        if (data.users) {
+            if (document.getElementsByTagName('ul')[0]) {
+                document.getElementsByTagName('ul')[0].remove();
+            }
+            var usersUl = document.createElement('ul');
+            for (var _i = 0, _b = data.users; _i < _b.length; _i++) {
+                var user = _b[_i];
+                console.log(user);
+                var userLi = document.createElement('li');
+                userLi.textContent = user;
+                usersUl.appendChild(userLi);
+            }
+            document.body.appendChild(usersUl);
+        }
+        else {
+            chat.value += data + '\n';
+            chat.scrollTop = chat.scrollHeight;
+            text.value = '';
+            text.placeholder = 'Write your message here...';
+        }
     };
     // eslint-disable-next-line @typescript-eslint/no-misused-promises
     frm.addEventListener('submit', function (e) { return __awaiter(_this, void 0, void 0, function () {

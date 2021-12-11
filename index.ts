@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Response } from 'express';
 
 import EventEmitter from 'events';
 import TypedEmitter from 'typed-emitter';
@@ -7,6 +7,10 @@ import { client, clientNames } from './types';
 interface ChatEvents {
   error: (error: Error) => void;
   message: (body: string, showUserName: boolean) => void;
+  _userJoined: (res: Response, name: string) => void;
+  _userLeft: () => void;
+
+  updateUserList: () => void;
 }
 
 const chatEmitter = new EventEmitter() as TypedEmitter<ChatEvents>;
@@ -20,6 +24,7 @@ let clientId = 0;
 const clients: client = {};
 let actUserName = '';
 const clientNames: clientNames = {};
+const clientArr: string[] = [];
 
 const sendText = (text: string, showUserName = true) => {
   for (const clientId in clients) {
@@ -27,9 +32,11 @@ const sendText = (text: string, showUserName = true) => {
     const date = new Date();
     const timestamp = `[${date.getHours()}:${date.getMinutes()}]`;
     if (showUserName) {
-      data = `data: ${timestamp} <${actUserName}> ${text}\n\n`;
+      data = `data: ${JSON.stringify(
+        `${timestamp} <${actUserName}> ${text}`
+      )}\n\n`;
     } else {
-      data = `data: ${timestamp} ${text}\n\n`;
+      data = `data: ${JSON.stringify(`${timestamp} ${text}`)}\n\n`;
     }
     clients[clientId].write(data);
   }
@@ -44,28 +51,9 @@ app.get('/chat/:name', (req, res) => {
     Connection: 'keep-alive',
   });
   res.write('\n');
-  (function () {
-    clientId++;
-    clients[clientId] = res;
-    clientNames[clientId] = req.params.name;
-    req.on('close', () => {
-      delete clients[clientId];
-      actUserName = '';
-      chatEmitter.emit(
-        'message',
-        clientNames[clientId] + ' disconnected!',
-        false
-      );
-      delete clientNames[clientId];
-    });
-  })();
-  chatEmitter.emit('message', req.params.name + ' connected!', false);
-  let allMates = '';
-  for (const cliId in clientNames) {
-    allMates += `${clientNames[cliId]}`;
-    if (Number(cliId) < clientId) allMates += ' ';
-  }
-  chatEmitter.emit('message', `logged in [${allMates}]`, false);
+  chatEmitter.emit('_userJoined', res, req.params.name);
+  req.on('close', () => chatEmitter.emit('_userLeft'));
+  chatEmitter.emit('updateUserList');
 });
 
 app.post('/write/', (req, res) => {
@@ -80,8 +68,6 @@ app.post('/write/', (req, res) => {
   }
 });
 
-chatEmitter.addListener('message', sendText);
-
 app.listen(3000, () => {
   console.log('Server running.');
 });
@@ -89,3 +75,32 @@ app.listen(3000, () => {
 const isString = (text: unknown): text is string => {
   return typeof text === 'string' || text instanceof String;
 };
+
+const userJoined = (res: Response, name: string): void => {
+  clientId++;
+  clients[clientId] = res;
+  clientArr.push(name);
+  clientNames[clientId] = name;
+};
+
+const userLeft = () => {
+  delete clients[clientId];
+  clientArr.filter((name) => name !== clientNames[clientId]);
+  actUserName = '';
+  chatEmitter.emit('message', clientNames[clientId] + ' disconnected!', false);
+  delete clientNames[clientId];
+  chatEmitter.emit('updateUserList');
+};
+
+const sendUsersList = (): void => {
+  for (const clientId in clients) {
+    clients[clientId].write(
+      `data: ${JSON.stringify({ users: clientArr })}\n\n`
+    );
+  }
+};
+
+chatEmitter.addListener('message', sendText);
+chatEmitter.addListener('_userJoined', userJoined);
+chatEmitter.addListener('_userLeft', userLeft);
+chatEmitter.addListener('updateUserList', sendUsersList);

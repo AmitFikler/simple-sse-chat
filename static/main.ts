@@ -12,11 +12,27 @@ if (myName != null) {
 
 if (enteredName) {
   const source = new EventSource('/chat/' + myName);
-  source.onmessage = (e) => {
-    chat.value += e.data + '\n';
-    chat.scrollTop = chat.scrollHeight;
-    text.value = '';
-    text.placeholder = 'write your text..';
+  source.onmessage = ({ data }) => {
+    data = JSON.parse(data);
+    if (data.users) {
+      if (document.getElementsByTagName('ul')[0]) {
+        document.getElementsByTagName('ul')[0].remove();
+      }
+      const usersUl = document.createElement('ul');
+      for (const user of data.users) {
+        console.log(user);
+        const userLi = document.createElement('li');
+        userLi.textContent = user;
+        usersUl.appendChild(userLi);
+      }
+
+      document.body.appendChild(usersUl);
+    } else {
+      chat.value += data + '\n';
+      chat.scrollTop = chat.scrollHeight;
+      text.value = '';
+      text.placeholder = 'Write your message here...';
+    }
   };
 
   // eslint-disable-next-line @typescript-eslint/no-misused-promises
