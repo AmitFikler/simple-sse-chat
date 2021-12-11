@@ -1,5 +1,15 @@
 import express from 'express';
+
+import EventEmitter from 'events';
+import TypedEmitter from 'typed-emitter';
 import { client, clientNames } from './types';
+
+interface ChatEvents {
+  error: (error: Error) => void;
+  message: (body: string, showUserName: boolean) => void;
+}
+
+const chatEmitter = new EventEmitter() as TypedEmitter<ChatEvents>;
 
 const app = express();
 
@@ -41,18 +51,21 @@ app.get('/chat/:name', (req, res) => {
     req.on('close', () => {
       delete clients[clientId];
       actUserName = '';
-      sendText(clientNames[clientId] + ' disconnected!', false);
+      chatEmitter.emit(
+        'message',
+        clientNames[clientId] + ' disconnected!',
+        false
+      );
       delete clientNames[clientId];
     });
   })();
-
-  sendText(req.params.name + ' connected!', false);
+  chatEmitter.emit('message', req.params.name + ' connected!', false);
   let allMates = '';
   for (const cliId in clientNames) {
     allMates += `${clientNames[cliId]}`;
     if (Number(cliId) < clientId) allMates += ' ';
   }
-  sendText(`logged in [${allMates}]`, false);
+  chatEmitter.emit('message', `logged in [${allMates}]`, false);
 });
 
 app.post('/write/', (req, res) => {
@@ -60,12 +73,14 @@ app.post('/write/', (req, res) => {
   actUserName = req.body.name;
   if (isString(req.body.text)) {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-    sendText(req.body.text);
+    chatEmitter.emit('message', req.body.text, true);
     res.json({ success: true });
   } else {
     res.sendStatus(400);
   }
 });
+
+chatEmitter.addListener('message', sendText);
 
 app.listen(3000, () => {
   console.log('Server running.');
