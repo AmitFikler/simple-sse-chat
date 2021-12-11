@@ -1,31 +1,37 @@
 let enteredName = false;
+const chat = <HTMLTextAreaElement>document.getElementById('chat');
+const text = <HTMLInputElement>document.getElementById('text');
+const frm = <HTMLFormElement>document.getElementById('frm');
 
-let myName = prompt("Whats your name?");
+const myName = prompt('Whats your name?');
 
 if (myName != null) {
-  document.getElementById("chat").value += "Connecting...\n";
+  chat.value += 'Connecting...\n';
   enteredName = true;
 }
 
 if (enteredName) {
-  let source = new EventSource("/chat/" + myName);
-  source.onmessage = e => {
-    document.getElementById("chat").value += e.data + "\n";
-    document.getElementById("chat").scrollTop = document.getElementById(
-      "chat"
-    ).scrollHeight;
-    document.getElementById("text").value = "";
-    document.getElementById("text").placeholder = myName;
+  const source = new EventSource('/chat/' + myName);
+  source.onmessage = (e) => {
+    chat.value += e.data + '\n';
+    chat.scrollTop = chat.scrollHeight;
+    text.value = '';
+    text.placeholder = 'write your text..';
   };
-  document.getElementById("frm").addEventListener("submit", e => {
+
+  // eslint-disable-next-line @typescript-eslint/no-misused-promises
+  frm.addEventListener('submit', async (e): Promise<void> => {
     e.preventDefault();
-    let xmlHttp = new XMLHttpRequest();
-    let textToPost = `{
+    const textToPost = `{
       "name": "${myName}", 
-      "text": "${document.getElementById("text").value}"
+      "text": "${text.value}"
     }`;
-    xmlHttp.open("POST", "/write/", false);
-    xmlHttp.setRequestHeader("Content-Type", "application/json");
-    xmlHttp.send(textToPost);
+    await fetch('/write/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: textToPost,
+    });
   });
 }
